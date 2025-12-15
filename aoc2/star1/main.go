@@ -8,7 +8,8 @@ import (
 )
 
 var (
-	invalidIDs []string
+	invalidIDs   []string
+	invalidIDSum int
 )
 
 func main() {
@@ -35,16 +36,54 @@ func main() {
 		for i := rangeOne; i <= rangeTwo; i++ {
 			fmt.Println("ID:", i)
 
-			splitedID := strings.Split(strconv.Itoa(i), "")
-			cSplitedID := splitedID
+			idLength := len(strings.Split(strconv.Itoa(i), ""))
+			fmt.Println("idLength:", idLength)
 
-			for id := range splitedID {
-				for id2 := range cSplitedID {
-					if id != id2 {
-						break
-					}
-				}
+			idSplit := SplitByPosition(strconv.Itoa(i), idLength/2)
+			fmt.Println("idSplit:", idSplit)
+
+			if idSplit[0] == idSplit[1] {
+				fmt.Println("ID repeating:", idSplit)
+				invalidIDs = append(invalidIDs, strconv.Itoa(i))
 			}
+
 		}
 	}
+
+	fmt.Println("")
+	fmt.Println("Repeating IDs:", invalidIDs)
+
+	for id := range invalidIDs {
+		value := invalidIDs[id]
+		valueAsI, err := strconv.Atoi(value)
+		if err != nil {
+			panic(err)
+		}
+
+		invalidIDSum += valueAsI
+	}
+
+	fmt.Println("")
+	fmt.Println("Sum of invalid IDs:", invalidIDSum)
+
+}
+
+func SplitByPosition(s string, pos int) []string {
+	var splitsOne []byte
+	var splitsTwo []byte
+
+	var value []string
+
+	for i := range s {
+		if i > pos-1 {
+			splitsOne = append(splitsOne, s[i])
+		} else {
+			splitsTwo = append(splitsTwo, s[i])
+		}
+	}
+
+	value = append(value, string(splitsOne))
+	value = append(value, string(splitsTwo))
+
+	return value
 }
