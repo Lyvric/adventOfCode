@@ -5,11 +5,22 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 )
+
+type RangePair struct {
+	Start int
+	End   int
+}
 
 var (
 	invalidIDs   []string
 	invalidIDSum int
+
+	ranges []RangePair
+
+	threads = 30
+	mutex   = &sync.Mutex{}
 )
 
 func main() {
@@ -31,49 +42,15 @@ func main() {
 			panic(err)
 		}
 
-		fmt.Println(rangeOne, rangeTwo)
-
-		for i := rangeOne; i <= rangeTwo; i++ {
-			fmt.Println("ID:", i)
-
-			// Build splits with loops
-			// Loop through id until number repeats
-			// Then continue on to next split part
-			// Compare the parts like this: part1 ?= part2 -> if true: part2 ?= part3; ...
-			// If all parts are the same add id to invalidIDs, if one part is different ignore id
-
-			splittedID := strings.Split(strconv.Itoa(i), "")
-			idParts := SplitToParts(splittedID)
-
-			fmt.Println("Parts:", idParts)
-
-			hits := 0
-
-			for i := range idParts {
-				value := idParts[i]
-
-				if len(idParts)-1 == i {
-					break
-				}
-
-				nextValue := idParts[i+1]
-
-				if value != nextValue {
-					break
-				}
-
-				hits++
-			}
-
-			fmt.Println("Hits:", hits)
-		}
+		ranges = append(ranges, RangePair{Start: rangeOne, End: rangeTwo})
 	}
+
+	DeployWorkers()
 
 	fmt.Println("")
 	fmt.Println("Repeating IDs:", invalidIDs)
 
-	for id := range invalidIDs {
-		value := invalidIDs[id]
+	for _, value := range invalidIDs {
 		valueAsI, err := strconv.Atoi(value)
 		if err != nil {
 			panic(err)
@@ -86,43 +63,58 @@ func main() {
 	fmt.Println("Sum of invalid IDs:", invalidIDSum)
 }
 
-func SplitToParts(splittedID []string) []string {
-	var idParts []string
-	var partBuilder []string
+func DeployWorkers() {
+	rangesChan := make(chan RangePair, len(ranges))
+	for _, r := range ranges {
+		rangesChan <- r
+	}
+	close(rangesChan)
 
-	indexed := 0
+	var wg sync.WaitGroup
+	wg.Add(threads)
 
-	for i := range splittedID {
-		iValue := splittedID[i]
+	for i := range threads {
+		go func(workerID int) {
+			defer wg.Done()
 
-		for indexed > i {
-			fmt.Println("SKIP", indexed, i)
-			continue
-		}
-
-		partBuilder = append(partBuilder, iValue)
-
-		for j := range splittedID {
-			jValue := splittedID[j]
-
-			if j == 0 {
-				continue
+			var runtimeInvalidIDs []string
+			for rangePair := range rangesChan {
+				returnedList := Runtime(rangePair, runtimeInvalidIDs)
+				runtimeInvalidIDs = returnedList
 			}
+			mutex.Lock()
+			invalidIDs = append(invalidIDs, runtimeInvalidIDs...)
+			mutex.Unlock()
+		}(i)
+	}
 
-			fmt.Println("values:", iValue, jValue)
+	wg.Wait()
+}
 
-			if iValue == jValue {
-				fmt.Println("partBuilder:", partBuilder)
-				idParts = append(idParts, strings.Join(partBuilder, ""))
-				fmt.Println("idParts:", idParts)
-				partBuilder = nil
-				break
-			}
+func Runtime(rangePair RangePair, runtimeInvalidIDs []string) []string {
+	for i := rangePair.Start; i <= rangePair.End; i++ {
+		idLength := len(strconv.Itoa(i))
+		idIsInvalid := TryCatchCombinations(strconv.Itoa(i), idLength)
 
-			partBuilder = append(partBuilder, jValue)
-			indexed++
+		if idIsInvalid {
+			runtimeInvalidIDs = append(runtimeInvalidIDs, strconv.Itoa(i))
 		}
 	}
 
-	return idParts
+	return runtimeInvalidIDs
+}
+
+func TryCatchCombinations(s string, idLength int) bool {
+	for patternLength := 1; patternLength <= idLength/2; patternLength++ {
+		if idLength%patternLength != 0 {
+			continue
+		}
+
+		pattern := s[0:patternLength]
+		testString := strings.Repeat(pattern, idLength/patternLength)
+		if testString == s {
+			return true
+		}
+	}
+	return false
 }

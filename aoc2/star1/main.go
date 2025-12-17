@@ -46,7 +46,6 @@ func main() {
 				fmt.Println("ID repeating:", idSplit)
 				invalidIDs = append(invalidIDs, strconv.Itoa(i))
 			}
-
 		}
 	}
 
